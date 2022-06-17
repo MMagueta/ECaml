@@ -1,0 +1,19 @@
+#+TITLE: EParsec 🎲
+A monadic parser combinator library in Emacs Lisp
+
+* What is a monadic parser combinator?
+Imagine tiny functions specialized on parsing a specific string subset that can get combined to create even bigger parsers, while handling errors and the stream consumption.
+
+For further details on how to implement them, check [[https://www.cs.nott.ac.uk/~pszgmh/monparsing.pdf][this paper]].
+
+* Why in Emacs Lisp?
+Because it's fun.
+
+* How to build it
+
+- Get [[https://github.com/doublep/eldev][Eldev]] for Emacs Lisp project management
+- Run `eldev test` to test
+- Run `eldev build -l`
+- Then you can run `eldev emacs` to spawn GNU/Emacs and explore the library
+- Run `eldev clean` to remove the bytecode files
+- Run `eldev package` to produce a package under `./dist`
