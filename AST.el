@@ -11,17 +11,6 @@
 (defmacro comment (&rest body)
   nil)
 
-(defun mapcar* (function &rest args)
-  "Apply FUNCTION to successive cars of all ARGS.
-Return the list of results."
-  ;; If no list is exhausted,
-  (if (not (memq nil args))
-      ;; apply function to CARs.
-      (cons (apply function (mapcar #'car args))
-            (apply #'mapcar* function
-                   ;; Recurse for rest of elements.
-                   (mapcar #'cdr args)))))
-
 (comment
  (setq test-table (ht-create))
  (ht-set test-table "abc" 123)
@@ -62,17 +51,14 @@ Return the list of results."
 	  (t (error "Could not reduce expression to LiteralT")))))
 
 (defun eval-variable (name env)
+  ""
   (let ((found-variable (ht-find (lambda ($key _value) (string-equal $key name)) env)))
     (unless found-variable (error (concat "Unbound variable: " name)))
-    (cdr found-variable)))
+    (elt found-variable 1)))
 
-;; 1 -> eval the value
-;; 2 -> append value and the argument to the closed-env and the env
-;; 3 -> eval with environment the new env and the body
 (defun eval-closure (arg body closed-env env value)
   (let ((evaluated-value (eval-ecaml value env)))
     (ht-set closed-env arg evaluated-value)
-    ;; (ht-find (lambda ($key _value) (string-equal $key arg)) (ht-merge closed-env env))))
     (eval-ecaml body (ht-merge closed-env env))))
 
 (defun eval-application (f value env)
@@ -80,10 +66,9 @@ Return the list of results."
     (cl-typecase exp
       (ClosureT (eval-closure (ClosureT-var exp) (ClosureT-expression exp) (ClosureT-environment exp) env value)))))
 
-
-; expression -> Result<expression, Message>
 (defun eval-ecaml (exp &optional env)
-  (unless env (setf env (ht-create)))
+  ""
+  (unless env (setq env (ht-create)))
   (cl-typecase exp
     (LiteralT exp)
     (ArithmeticT (eval-arithmetic (ArithmeticT-operation exp) env (ArithmeticT-left exp) (ArithmeticT-right exp)))
@@ -96,17 +81,17 @@ Return the list of results."
 
 (eval-ecaml (make-ArithmeticT :operation #'+ :left (make-LiteralT :value 2) :right (make-LiteralT :value 2)))
 
-;; (eval-ecaml (make-ApplicationT
-;;  :abstraction (make-AbstractionT
-;; 	       :param "x"
-;; 	       :body (make-ArithmeticT
-;; 		      :operation #'+
-;; 		      :left (make-LiteralT
-;; 				:value 1)
-;; 		      :right (make-VariableT
-;; 			    :label "x")))
-;;  :literal (make-LiteralT
-;; 	   :value 2)))
+(eval-ecaml (make-ApplicationT
+ :abstraction (make-AbstractionT
+	       :param "x"
+	       :body (make-ArithmeticT
+		      :operation #'+
+		      :left (make-LiteralT
+				:value 1)
+		      :right (make-VariableT
+			    :label "x")))
+ :literal (make-LiteralT
+	   :value 2)))
 
 (eval-ecaml (make-ApplicationT
  :abstraction (make-AbstractionT
@@ -118,7 +103,11 @@ Return the list of results."
 
 (eval-ecaml (make-AbstractionT
 	       :param "x"
-	       :body (make-VariableT
-		      :label "x")))
+	       :body (make-ArithmeticT
+		      :operation #'+
+		      :left (make-LiteralT
+				:value 1)
+		      :right (make-VariableT
+			    :label "x"))))
 
 ;;; AST.el ends here
