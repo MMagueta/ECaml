@@ -1,4 +1,4 @@
-;;; AST.el --- Ecaml AST.
+;;; AST.el --- Ecaml AST
 ;;; Version: 1.0
 ;;; Commentary:
 ;;;
@@ -19,10 +19,13 @@
 (cl-deftype ExpressionT ()
   `(or AbstractionT VariableT LiteralT ApplicationT ArithmeticT))
 
+(cl-deftype ExpressionListT ()
+  `(and list (satisfies (lambda (list) (and (consp list)
+					    (every #'ExpressionT-p list))))))
+
 (cl-defstruct ArithmeticT
   (operation :type symbol)
-  (left :type ExpressionT)
-  (right :type ExpressionT))
+  (parameters :type ExpressionListT))
 
 (cl-defstruct AbstractionT
   (param :type string)
@@ -41,19 +44,22 @@
 
 (cl-defstruct ApplicationT
   (abstraction :type AbstractionT)
-  (literal :type LiteralT))
+  (literal :type ExpressionT))
 
 (cl-defstruct ConditionT
   (condition :type ExpressionT)
   (then :type ExpressionT)
   (else :type ExpressionT))
 
-(defun eval-arithmetic (op env left right)
+(defun true-list-p (list)
   ""
-  (let ((evaluated-left (eval-ecaml left env))
-	(evaluated-right (eval-ecaml right env)))
-    (cond ((and (LiteralT-p evaluated-left) (LiteralT-p evaluated-right))
-	   (make-LiteralT :value (funcall op (LiteralT-value evaluated-left) (LiteralT-value evaluated-right))))
+  (eval `(and ,@list)))
+
+(defun eval-arithmetic (op env parameters)
+  ""
+  (let ((evaluated-parameters (mapcar #'(lambda (param) (eval-ecaml param env)) parameters)))
+    (cond ((true-list-p (mapcar #'LiteralT-p evaluated-parameters))
+	   (make-LiteralT :value (eval `(funcall #',op ,@(mapcar #'LiteralT-value evaluated-parameters)))))
 	  (t (error "Could not reduce expression to LiteralT")))))
 
 (defun eval-variable (name env)
@@ -89,7 +95,7 @@
   (unless env (setq env (ht-create)))
   (cl-typecase exp
     (LiteralT exp)
-    (ArithmeticT (eval-arithmetic (ArithmeticT-operation exp) env (ArithmeticT-left exp) (ArithmeticT-right exp)))
+    (ArithmeticT (eval-arithmetic (ArithmeticT-operation exp) env (ArithmeticT-parameters exp)))
     (VariableT (eval-variable (VariableT-label exp) env))
     (AbstractionT (make-ClosureT :var (AbstractionT-param exp) :expression (AbstractionT-body exp) :environment env))
     (ConditionT (eval-condition exp env))
@@ -98,21 +104,42 @@
   
 (eval-ecaml (make-LiteralT :value 2))
 
-(eval-ecaml (make-ArithmeticT :operation #'+ :left (make-LiteralT :value 2) :right (make-LiteralT :value 2)))
+(eval-ecaml (make-ArithmeticT
+	     :operation #'+
+	     :parameters (list (make-LiteralT :value 2)
+			       (make-LiteralT :value 2)
+			       (make-LiteralT :value 2)
+			       (make-LiteralT :value 2)
+			       (make-LiteralT :value 2))))
 
-(eval-ecaml (make-ConditionT :condition (make-LiteralT :value nil) :then (make-LiteralT :value 1) :else (make-LiteralT :value 2)))
+(eval-ecaml (make-ArithmeticT
+	     :operation #'princ
+	     :parameters (list (make-LiteralT :value "Hello!"))))
+
+(eval-ecaml (make-ConditionT :condition (make-LiteralT :value t) :then (make-LiteralT :value 1) :else (make-LiteralT :value 2)))
 
 (eval-ecaml (make-ApplicationT
  :abstraction (make-AbstractionT
 	       :param "x"
 	       :body (make-ArithmeticT
 		      :operation #'+
-		      :left (make-LiteralT
-				:value 1)
-		      :right (make-VariableT
-			    :label "x")))
+		      :parameters (list (make-LiteralT :value 1)
+		                        (make-VariableT :label "x"))))
  :literal (make-LiteralT
 	   :value 2)))
+
+(eval-ecaml (make-ApplicationT
+	     :abstraction (make-ApplicationT
+			   :abstraction (make-AbstractionT
+					 :param "x"
+					 :body (make-AbstractionT
+						:param "y"
+						:body (make-ArithmeticT
+						       :operation #'+
+						       :parameters (list (make-VariableT :label "y")
+									 (make-VariableT :label "x")))))
+			   :literal (make-LiteralT :value 2))
+	     :literal (make-LiteralT :value 2)))
 
 (eval-ecaml (make-ApplicationT
  :abstraction (make-AbstractionT
@@ -122,13 +149,19 @@
  :literal (make-LiteralT
 	   :value 2)))
 
-(eval-ecaml (make-AbstractionT
-	       :param "x"
-	       :body (make-ArithmeticT
-		      :operation #'+
-		      :left (make-LiteralT
-				:value 1)
-		      :right (make-VariableT
-			    :label "x"))))
+;; (eval-ecaml (make-ApplicationT
+;; 	     :abstraction (make-AbstractionT
+;; 			   :param "_"
+;; 			   :body
+;; 			   (make-ApplicationT
+;; 			    :abstraction (make-AbstractionT
+;; 					  :param "x"
+;; 					  :body (make-ApplicationT :abstraction (make-VariableT :label "x") :literal (make-VariableT :label "x")))
+;; 			    :literal (make-AbstractionT
+;; 				      :param "x"
+;; 				      :body (make-ApplicationT :abstraction (make-VariableT :label "x") :literal (make-VariableT :label "x")))))
+;; 	     :literal (make-ArithmeticT
+;; 		       :operation #'message
+;; 		       :parameters (list (make-LiteralT :value "Hello!")))))
 
 ;;; AST.el ends here
