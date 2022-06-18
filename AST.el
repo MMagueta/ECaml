@@ -6,6 +6,7 @@
 
 ; (ApplicationT (AbstractionT ("x" ArithmeticT (Addition, VariableT "x", LiteralT (Integer 2)))), LiteralT 2) -> (\x.x+2)(2)
 
+(load-file "./ht.el")
 (require 'ht)
 
 (defmacro comment (&rest body)
@@ -51,6 +52,9 @@
   (then :type ExpressionT)
   (else :type ExpressionT))
 
+(cl-defstruct NativeT
+  (fun :type function))
+
 (defun true-list-p (list)
   ""
   (eval `(and ,@list)))
@@ -78,7 +82,8 @@
   ""
   (let ((exp (eval-ecaml f env)))
     (cl-typecase exp
-      (ClosureT (eval-closure (ClosureT-var exp) (ClosureT-expression exp) (ClosureT-environment exp) env value)))))
+      (ClosureT (eval-closure (ClosureT-var exp) (ClosureT-expression exp) (ClosureT-environment exp) env value))
+      (NativeT (funcall (NativeT-fun exp) value)))))
 
 (defun eval-condition (control-expression env)
   ""
@@ -149,19 +154,29 @@
  :literal (make-LiteralT
 	   :value 2)))
 
-;; (eval-ecaml (make-ApplicationT
-;; 	     :abstraction (make-AbstractionT
-;; 			   :param "_"
-;; 			   :body
-;; 			   (make-ApplicationT
-;; 			    :abstraction (make-AbstractionT
-;; 					  :param "x"
-;; 					  :body (make-ApplicationT :abstraction (make-VariableT :label "x") :literal (make-VariableT :label "x")))
-;; 			    :literal (make-AbstractionT
-;; 				      :param "x"
-;; 				      :body (make-ApplicationT :abstraction (make-VariableT :label "x") :literal (make-VariableT :label "x")))))
-;; 	     :literal (make-ArithmeticT
-;; 		       :operation #'message
-;; 		       :parameters (list (make-LiteralT :value "Hello!")))))
+(setq +initial-env+ (ht-create))
+(ht-set +initial-env+
+	"print_hello"
+	(make-NativeT :fun (lambda (x)
+			     (progn
+			       (ignore (princ "Hello!\n"))
+			       x))))
+
+(eval-ecaml (make-ApplicationT
+	     :abstraction (make-AbstractionT
+			   :param "f"
+			   :body (make-ApplicationT
+				  :abstraction (make-VariableT :label "f")
+				  :literal (make-ApplicationT
+					    :abstraction (make-VariableT :label "print_hello")
+					    :literal (make-VariableT :label "f"))))
+	     :literal (make-AbstractionT
+		       :param "f"
+		       :body (make-ApplicationT
+			      :abstraction (make-VariableT :label "f")
+			      :literal (make-ApplicationT
+					:abstraction (make-VariableT :label "print_hello")
+					:literal (make-VariableT :label "f")))))
+	    +initial-env+)
 
 ;;; AST.el ends here
