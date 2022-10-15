@@ -1,3 +1,10 @@
 ;; This project deliberately uses additional loading root for its tests.
 (eldev-add-loading-roots 'test "test")
 (eldev-use-package-archive 'melpa)
+
+;; Adds dependencies
+(eldev-add-extra-dependencies 'build 'ht)
+(eldev-add-extra-dependencies 'exec 'ht)
+(eldev-add-extra-dependencies 'emacs 'ht)
+(eldev-add-extra-dependencies 'test 'ht)
+

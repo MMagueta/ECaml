@@ -24,35 +24,35 @@
 					    (every #'ExpressionT-p list))))))
 
 (cl-defstruct ArithmeticT
-  (operation :type symbol)
-  (parameters :type ExpressionListT))
+  (operation)
+  (parameters))
 
 (cl-defstruct AbstractionT
-  (param :type string)
-  (body :type ExpressionT))
+  (param)
+  (body))
 
 (cl-defstruct VariableT
-  (label :type string))
+  (label))
 
 (cl-defstruct LiteralT
-  (value :type integer))
+  (value))
 
 (cl-defstruct ClosureT
-  (var :type string)
-  (expression :type ExpressionT)
+  (var)
+  (expression)
   (environment)) ; environment = Map<string * expression>
 
 (cl-defstruct ApplicationT
-  (abstraction :type AbstractionT)
-  (literal :type ExpressionT))
+  (abstraction)
+  (literal))
 
 (cl-defstruct ConditionT
-  (condition :type ExpressionT)
-  (then :type ExpressionT)
-  (else :type ExpressionT))
+  (condition)
+  (then)
+  (else))
 
 (cl-defstruct NativeT
-  (fun :type function))
+  (fun))
 
 (defun true-list-p (list)
   ""
@@ -102,53 +102,7 @@
 		(ht-set! env (ClosureT-var new-exp) value)))
 	     ;; (eval-closure (ClosureT-var new-exp) (ClosureT-new-expression new-exp) (ClosureT-environment new-exp) env value))
 	     (NativeT (funcall (NativeT-fun new-exp) value)))))))))
-  
-(eval-ecaml (make-LiteralT :value 2))
 
-(eval-ecaml (make-ArithmeticT
-	     :operation #'+
-	     :parameters (list (make-LiteralT :value 2)
-			       (make-LiteralT :value 2)
-			       (make-LiteralT :value 2)
-			       (make-LiteralT :value 2)
-			       (make-LiteralT :value 2))))
-
-(eval-ecaml (make-ArithmeticT
-	     :operation #'princ
-	     :parameters (list (make-LiteralT :value "Hello!"))))
-
-(eval-ecaml (make-ConditionT :condition (make-LiteralT :value t) :then (make-LiteralT :value 1) :else (make-LiteralT :value 2)))
-
-(eval-ecaml (make-ApplicationT
- :abstraction (make-AbstractionT
-	       :param "x"
-	       :body (make-ArithmeticT
-		      :operation #'+
-		      :parameters (list (make-LiteralT :value 1)
-		                        (make-VariableT :label "x"))))
- :literal (make-LiteralT
-	   :value 2)))
-
-(eval-ecaml (make-ApplicationT
-	     :abstraction (make-ApplicationT
-			   :abstraction (make-AbstractionT
-					 :param "x"
-					 :body (make-AbstractionT
-						:param "y"
-						:body (make-ArithmeticT
-						       :operation #'+
-						       :parameters (list (make-VariableT :label "y")
-									 (make-VariableT :label "x")))))
-			   :literal (make-LiteralT :value 2))
-	     :literal (make-LiteralT :value 2)))
-
-(eval-ecaml (make-ApplicationT
- :abstraction (make-AbstractionT
-	       :param "x"
-	       :body (make-VariableT
-		      :label "x"))
- :literal (make-LiteralT
-	   :value 2)))
 
 ;; (setq +initial-env+ (ht-create))
 ;; (ht-set +initial-env+
