@@ -6,7 +6,6 @@
 
 ; (ApplicationT (AbstractionT ("x" ArithmeticT (Addition, VariableT "x", LiteralT (Integer 2)))), LiteralT 2) -> (\x.x+2)(2)
 
-(load-file "./ht.el")
 (require 'ht)
 
 (defmacro comment (&rest body)
@@ -59,53 +58,50 @@
   ""
   (eval `(and ,@list)))
 
-(defun eval-arithmetic (op env parameters)
-  ""
-  (let ((evaluated-parameters (mapcar #'(lambda (param) (eval-ecaml param env)) parameters)))
-    (cond ((true-list-p (mapcar #'LiteralT-p evaluated-parameters))
-	   (make-LiteralT :value (eval `(funcall #',op ,@(mapcar #'LiteralT-value evaluated-parameters)))))
-	  (t (error "Could not reduce expression to LiteralT")))))
-
-(defun eval-variable (name env)
-  ""
-  (let ((found-variable (ht-find (lambda ($key _value) (string-equal $key name)) env)))
-    (unless found-variable (error (concat "Unbound variable: " name)))
-    (elt found-variable 1)))
-
-(defun eval-closure (arg body closed-env env value)
-  ""
-  (let ((evaluated-value (eval-ecaml value env)))
-    (ht-set closed-env arg evaluated-value)
-    (eval-ecaml body (ht-merge closed-env env))))
-
-(defun eval-application (f value env)
-  ""
-  (let ((exp (eval-ecaml f env)))
-    (cl-typecase exp
-      (ClosureT (eval-closure (ClosureT-var exp) (ClosureT-expression exp) (ClosureT-environment exp) env value))
-      (NativeT (funcall (NativeT-fun exp) value)))))
-
-(defun eval-condition (control-expression env)
-  ""
-  (let ((evaluated-expression (eval-ecaml (ConditionT-condition control-expression) env)))
-    (if (and (LiteralT-p evaluated-expression)
-	     (booleanp (LiteralT-value evaluated-expression)))
-	(if (LiteralT-value evaluated-expression)
-	    (eval-ecaml (ConditionT-then control-expression) env)
-	  (eval-ecaml (ConditionT-else control-expression) env))
-      (error "ConditionT expression failed on evaluation"))))
-
 (defun eval-ecaml (exp &optional env)
   ""
+  
   (unless env (setq env (ht-create)))
-  (cl-typecase exp
-    (LiteralT exp)
-    (ArithmeticT (eval-arithmetic (ArithmeticT-operation exp) env (ArithmeticT-parameters exp)))
-    (VariableT (eval-variable (VariableT-label exp) env))
-    (AbstractionT (make-ClosureT :var (AbstractionT-param exp) :expression (AbstractionT-body exp) :environment env))
-    (ConditionT (eval-condition exp env))
-    (ClosureT exp)
-    (ApplicationT (eval-application (ApplicationT-abstraction exp) (ApplicationT-literal exp) env))))
+  (catch 'result
+    (while t
+      (cl-typecase exp
+	(LiteralT (throw 'result exp))
+	(ArithmeticT
+	 (throw 'result
+		(let* ((op (ArithmeticT-operation exp))
+		      (parameters (ArithmeticT-parameters exp))
+		      (evaluated-parameters (mapcar #'(lambda (param) (eval-ecaml param env)) parameters)))
+		  (cond ((true-list-p (mapcar #'LiteralT-p evaluated-parameters))
+			 (make-LiteralT :value (eval `(funcall #',op ,@(mapcar #'LiteralT-value evaluated-parameters)))))
+			(t (error "Could not reduce expression to LiteralT"))))))
+	(VariableT
+	 (throw 'result
+		(let* ((name (VariableT-label exp))
+		       (found-variable (ht-find (lambda ($key _value) (string-equal $key name)) env)))
+		  (unless found-variable (error (concat "Unbound variable: " name)))
+		  (elt found-variable 1))))
+	(AbstractionT (throw 'result (make-ClosureT :var (AbstractionT-param exp) :expression (AbstractionT-body exp) :environment env)))
+	(ConditionT
+	 (let ((evaluated-expression (eval-ecaml (ConditionT-condition exp) env)))
+	   (if (and (LiteralT-p evaluated-expression)
+		    (booleanp (LiteralT-value evaluated-expression)))
+	       (if (LiteralT-value evaluated-expression)
+		   (setf exp (ConditionT-then exp))
+		 (setf exp (ConditionT-else exp)))
+	     (error "ConditionT expression failed on evaluation"))))
+	(ClosureT (throw 'result exp))
+	(ApplicationT
+	 (let* ((f (ApplicationT-abstraction exp))
+		(value (ApplicationT-literal exp))
+		(new-exp (eval-ecaml f env)))
+	   (cl-typecase new-exp
+	     (ClosureT
+	      (progn
+		(setf exp (ClosureT-expression new-exp))
+		(setf env (ht-merge env (ClosureT-environment new-exp)))
+		(ht-set! env (ClosureT-var new-exp) value)))
+	     ;; (eval-closure (ClosureT-var new-exp) (ClosureT-new-expression new-exp) (ClosureT-environment new-exp) env value))
+	     (NativeT (funcall (NativeT-fun new-exp) value)))))))))
   
 (eval-ecaml (make-LiteralT :value 2))
 
@@ -154,29 +150,31 @@
  :literal (make-LiteralT
 	   :value 2)))
 
-(setq +initial-env+ (ht-create))
-(ht-set +initial-env+
-	"print_hello"
-	(make-NativeT :fun (lambda (x)
-			     (progn
-			       (ignore (princ "Hello!\n"))
-			       x))))
+;; (setq +initial-env+ (ht-create))
+;; (ht-set +initial-env+
+;; 	"print_hello"
+;; 	(make-NativeT :fun (lambda (x)
+;; 			     (progn
+;; 			       (ignore (princ "Hello!\n"))
+;; 			       x))))
 
-(eval-ecaml (make-ApplicationT
-	     :abstraction (make-AbstractionT
-			   :param "f"
-			   :body (make-ApplicationT
-				  :abstraction (make-VariableT :label "f")
-				  :literal (make-ApplicationT
-					    :abstraction (make-VariableT :label "print_hello")
-					    :literal (make-VariableT :label "f"))))
-	     :literal (make-AbstractionT
-		       :param "f"
-		       :body (make-ApplicationT
-			      :abstraction (make-VariableT :label "f")
-			      :literal (make-ApplicationT
-					:abstraction (make-VariableT :label "print_hello")
-					:literal (make-VariableT :label "f")))))
-	    +initial-env+)
+;; (eval-ecaml (make-ApplicationT
+;; 	     :abstraction (make-AbstractionT
+;; 			   :param "f"
+;; 			   :body (make-ApplicationT
+;; 				  :abstraction (make-VariableT :label "f")
+;; 				  :literal (make-ApplicationT
+;; 					    :abstraction (make-VariableT :label "print_hello")
+;; 					    :literal (make-VariableT :label "f"))))
+;; 	     :literal (make-AbstractionT
+;; 		       :param "f"
+;; 		       :body (make-ApplicationT
+;; 			      :abstraction (make-VariableT :label "f")
+;; 			      :literal (make-ApplicationT
+;; 					:abstraction (make-VariableT :label "print_hello")
+;; 					:literal (make-VariableT :label "f")))))
+;; 	    +initial-env+)
+
+(provide 'AST)
 
 ;;; AST.el ends here
